@@ -18,20 +18,31 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 
 	addPacket := func(flow *utils.Flow, packet gopacket.Packet, isForward bool, ts time.Time) {
 		size := utils.GetPacketSize(packet)
+		prevTotal := flow.TotalfwdPackets + flow.TotalbwdPackets
+		if prevTotal >= 1 && !flow.LastSeenTime.IsZero() {
+			flow.FlowIAT.AddValue(float64(ts.Sub(flow.LastSeenTime).Microseconds()))
+		}
+
 		if isForward {
+			prevFwd := flow.TotalfwdPackets
+			if prevFwd >= 1 && !flow.FwdLastSeenTime.IsZero() {
+				flow.FwdIAT.AddValue(float64(ts.Sub(flow.FwdLastSeenTime).Microseconds()))
+			}
 			flow.TotalfwdPackets++
 			flow.FwdPktStats.AddValue(float64(size))
 			flow.TotalLengthofFwdPacket += size
 			flow.FwdLastSeenTime = ts
-			flow.FwdIAT.AddValue(ts.Sub(flow.FwdLastSeenTime).Seconds())
 		} else {
+			prevBwd := flow.TotalbwdPackets
+			if prevBwd >= 1 && !flow.BwdLastSeenTime.IsZero() {
+				flow.BwdIAT.AddValue(float64(ts.Sub(flow.BwdLastSeenTime).Microseconds()))
+			}
 			flow.TotalbwdPackets++
 			flow.BwdPktStats.AddValue(float64(size))
 			flow.TotalLengthofBwdPacket += size
 			flow.BwdLastSeenTime = ts
-			flow.BwdIAT.AddValue(ts.Sub(flow.BwdLastSeenTime).Seconds())
 		}
-		flow.FlowIAT.AddValue(ts.Sub(flow.LastSeenTime).Seconds())
+
 		flow.LastSeenTime = ts
 	}
 
@@ -47,13 +58,15 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			TotalbwdPackets:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
-			FlowIAT: 			 flowmetrics.NewIATStats(),
-			FwdIAT: 			 flowmetrics.NewIATStats(),
-			BwdIAT: 			 flowmetrics.NewIATStats(),
+			FlowIAT:                flowmetrics.NewIATStats(),
+			FwdIAT:                 flowmetrics.NewIATStats(),
+			BwdIAT:                 flowmetrics.NewIATStats(),
 			TotalLengthofFwdPacket: 0,
 			TotalLengthofBwdPacket: 0,
 			Timestamp:              ts,
 			LastSeenTime:           ts,
+			FwdLastSeenTime:        time.Time{},
+			BwdLastSeenTime:        time.Time{},
 		}
 	}
 
@@ -69,9 +82,9 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			TotalbwdPackets:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
-			FlowIAT: 			 flowmetrics.NewIATStats(),
-			FwdIAT: 			 flowmetrics.NewIATStats(),
-			BwdIAT: 			 flowmetrics.NewIATStats(),
+			FlowIAT:                flowmetrics.NewIATStats(),
+			FwdIAT:                 flowmetrics.NewIATStats(),
+			BwdIAT:                 flowmetrics.NewIATStats(),
 			TotalLengthofFwdPacket: 0,
 			TotalLengthofBwdPacket: 0,
 			Timestamp:              ts,
@@ -108,8 +121,6 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 					isForward = true
 				}
 
-				// CIC absolute flow timeout (pre-add): finalize old flow (>1 packet),
-				// remove it, and start a new flow that contains the current packet.
 				if utils.HasAbsoluteFlowTimedOut(flow, packetTs, flowTimeOut) {
 					if utils.FlowPacketCount(flow) > 1 {
 						flowComplete(key, flowmap, writer)
@@ -117,11 +128,9 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 						delete(flowmap, key)
 					}
 
-					// Create new flow using the same 5-tuple orientation as the old flow.
 					template := flow
 					flow = newFlowFromTemplate(key, template, packetTs)
 					flowmap[key] = flow
-					// Direction remains relative to the flow key; keep current packet direction.
 				}
 
 				// Add current packet to flow (forward/backward accounting).
@@ -138,9 +147,6 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 					}
 					if hasFIN {
 						utils.UpdateFINCounters(flow, isForward)
-						// CICFlowMeter can emit flows even if only one side's FIN is observed.
-						// Finalize immediately on first FIN to avoid merging consecutive connections
-						// that reuse the same 5-tuple.
 						flowComplete(key, flowmap, writer)
 						mu.Unlock()
 						wg.Done()
@@ -175,7 +181,7 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 	flow.BwdPacketLengthStd = flowmetrics.BwdPacketLengthStd(flow.BwdPktStats)
 	flow.FlowBytesPerSecond = (float64(flow.TotalLengthofFwdPacket+flow.TotalLengthofBwdPacket) / (float64(flow.FlowDuration) / 1e6))
 	flow.FlowPacketsPerSecond = (float64(flow.TotalfwdPackets+flow.TotalbwdPackets) / (float64(flow.FlowDuration) / 1e6))
-	
+
 	flow.FlowIATMean = flowmetrics.FlowIATMean(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
 	flow.FlowIATStd = flowmetrics.FlowIATStd(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
 	flow.FlowIATMax = flowmetrics.FlowIATMax(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
