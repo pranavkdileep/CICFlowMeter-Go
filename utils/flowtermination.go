@@ -30,6 +30,10 @@ type Flow struct {
 	Protocol               int
 	TotalfwdPackets        int
 	TotalbwdPackets        int
+	FPSH_cnt               int
+	BPSH_cnt               int
+	FURG_cnt               int
+	BURG_cnt               int
 	FwdFINCount            int
 	BwdFINCount            int
 	TotalLengthofFwdPacket int64 // Total size of packet in forward direction
@@ -43,8 +47,8 @@ type Flow struct {
 	FwdPktStats flowmetrics.Stats
 	BwdPktStats flowmetrics.Stats
 	FlowIAT     flowmetrics.IATStats
-	FwdIAT     flowmetrics.IATStats
-	BwdIAT     flowmetrics.IATStats
+	FwdIAT      flowmetrics.IATStats
+	BwdIAT      flowmetrics.IATStats
 
 	FlowDuration         int64   // in microseconds
 	FwdPacketLengthMin   float64 // Minimum size of packet in forward direction
@@ -58,20 +62,20 @@ type Flow struct {
 	FlowBytesPerSecond   float64 // Number of flow bytes per second
 	FlowPacketsPerSecond float64 // Number of flow packets per second
 
-	FlowIATMean			float64	// Mean time between two packets sent in the flow
-	FlowIATStd			float64	// Standard deviation time between two packets sent in the flow
-	FlowIATMax			float64	// Maximum time between two packets sent in the flow
-	FlowIATMin			float64	// Minimum time between two packets sent in the flow
-	FwdIATMin			float64	// Minimum time between two packets sent in the forward direction
-	FwdIATMax			float64	// Maximum time between two packets sent in the forward direction
-	FwdIATMean			float64	// Mean time between two packets sent in the forward direction
-	FwdIATStd			float64	// Standard deviation time between two packets sent in the forward direction
-	FwdIATTotal   		float64	// Total time between two packets sent in the forward direction
-	BwdIATMin			float64	// Minimum time between two packets sent in the backward direction
-	BwdIATMax			float64	// Maximum time between two packets sent in the backward direction
-	BwdIATMean			float64	// Mean time between two packets sent in the backward direction
-	BwdIATStd			float64	// Standard deviation time between two packets sent in the backward direction
-	BwdIATTotal			float64	// Total time between two packets sent in the backward direction
+	FlowIATMean float64 // Mean time between two packets sent in the flow
+	FlowIATStd  float64 // Standard deviation time between two packets sent in the flow
+	FlowIATMax  float64 // Maximum time between two packets sent in the flow
+	FlowIATMin  float64 // Minimum time between two packets sent in the flow
+	FwdIATMin   float64 // Minimum time between two packets sent in the forward direction
+	FwdIATMax   float64 // Maximum time between two packets sent in the forward direction
+	FwdIATMean  float64 // Mean time between two packets sent in the forward direction
+	FwdIATStd   float64 // Standard deviation time between two packets sent in the forward direction
+	FwdIATTotal float64 // Total time between two packets sent in the forward direction
+	BwdIATMin   float64 // Minimum time between two packets sent in the backward direction
+	BwdIATMax   float64 // Maximum time between two packets sent in the backward direction
+	BwdIATMean  float64 // Mean time between two packets sent in the backward direction
+	BwdIATStd   float64 // Standard deviation time between two packets sent in the backward direction
+	BwdIATTotal float64 // Total time between two packets sent in the backward direction
 }
 
 // PacketTimestamp returns a stable timestamp for a packet.
@@ -132,6 +136,17 @@ func TCPFlags(packet gopacket.Packet) (hasFIN bool, hasRST bool) {
 	if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 		if tcp, ok := tcpLayer.(*layers.TCP); ok {
 			return tcp.FIN, tcp.RST
+		}
+	}
+	return false, false
+}
+
+// TCPPSHURGFlags returns whether a packet has TCP PSH/URG flags set.
+// For non-TCP packets it returns (false, false).
+func TCPPSHURGFlags(packet gopacket.Packet) (hasPSH bool, hasURG bool) {
+	if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+		if tcp, ok := tcpLayer.(*layers.TCP); ok {
+			return tcp.PSH, tcp.URG
 		}
 	}
 	return false, false

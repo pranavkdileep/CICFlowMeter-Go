@@ -23,6 +23,26 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			flow.FlowIAT.AddValue(float64(ts.Sub(flow.LastSeenTime).Microseconds()))
 		}
 
+		// TCP-only directional flag counters (UDP remains 0).
+		if flow.Protocol == 6 {
+			hasPSH, hasURG := utils.TCPPSHURGFlags(packet)
+			if isForward {
+				if hasPSH {
+					flow.FPSH_cnt++
+				}
+				if hasURG {
+					flow.FURG_cnt++
+				}
+			} else {
+				if hasPSH {
+					flow.BPSH_cnt++
+				}
+				if hasURG {
+					flow.BURG_cnt++
+				}
+			}
+		}
+
 		if isForward {
 			prevFwd := flow.TotalfwdPackets
 			if prevFwd >= 1 && !flow.FwdLastSeenTime.IsZero() {
@@ -236,6 +256,10 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatFloat(flow.BwdIATStd, 'f', 6, 64),
 		strconv.FormatFloat(flow.BwdIATMax, 'f', 6, 64),
 		strconv.FormatFloat(flow.BwdIATMin, 'f', 6, 64),
+		strconv.Itoa(flow.FPSH_cnt),
+		strconv.Itoa(flow.BPSH_cnt),
+		strconv.Itoa(flow.FURG_cnt),
+		strconv.Itoa(flow.BURG_cnt),
 	}
 
 	AppendToCSV(writer, record)

@@ -74,6 +74,10 @@ func main() {
 		"Bwd IAT Std",
 		"Bwd IAT Max",
 		"Bwd IAT Min",
+		"Fwd PSH Flags",
+		"Bwd PSH Flags",
+		"Fwd URG Flags",
+		"Bwd URG Flags",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)
