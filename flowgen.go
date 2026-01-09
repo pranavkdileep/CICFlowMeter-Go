@@ -290,6 +290,18 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		flow.DownUpRatio = 0
 	}
 
+	// Segment size averages (CIC/Java logic): sum of per-packet sizes / packet count, per direction.
+	if flow.TotalfwdPackets > 0 {
+		flow.FwdSegSizeAvg = flow.FwdPktStats.Sum() / float64(flow.TotalfwdPackets)
+	} else {
+		flow.FwdSegSizeAvg = 0
+	}
+	if flow.TotalbwdPackets > 0 {
+		flow.BwdSegSizeAvg = flow.BwdPktStats.Sum() / float64(flow.TotalbwdPackets)
+	} else {
+		flow.BwdSegSizeAvg = 0
+	}
+
 	record := []string{
 		flow.Flowid.String(),
 		flow.SrcIP,
@@ -350,6 +362,8 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.Itoa(flow.ECEFlagCount),
 		strconv.FormatFloat(flow.DownUpRatio, 'f', 6, 64),
 		strconv.FormatFloat(flow.PktLenMean, 'f', 6, 64),
+		strconv.FormatFloat(flow.FwdSegSizeAvg, 'f', 6, 64),
+		strconv.FormatFloat(flow.BwdSegSizeAvg, 'f', 6, 64),
 	}
 
 	AppendToCSV(writer, record)

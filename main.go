@@ -97,6 +97,8 @@ func main() {
 		"ECE Flag Count",
 		"Down/Up Ratio",
 		"Average Packet Size",
+		"Fwd Segment Size Avg",
+		"Bwd Segment Size Avg",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)

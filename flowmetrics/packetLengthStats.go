@@ -33,6 +33,10 @@ func (s *Stats) AddValue(v float64) {
 
 func (s Stats) N() int64 { return s.n }
 
+// Sum returns the accumulated sum of all added values.
+// This matches Apache Commons Math SummaryStatistics.getSum().
+func (s Stats) Sum() float64 { return s.sum }
+
 func (s Stats) Min() float64 {
 	if s.n == 0 {
 		return 0
