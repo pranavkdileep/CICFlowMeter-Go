@@ -99,6 +99,16 @@ func main() {
 		"Average Packet Size",
 		"Fwd Segment Size Avg",
 		"Bwd Segment Size Avg",
+		"Fwd Bytes/Bulk Avg",
+		"Fwd Packet/Bulk Avg",
+		"Fwd Bulk Rate Avg",
+		"Bwd Bytes/Bulk Avg",
+		"Bwd Packet/Bulk Avg",
+		"Bwd Bulk Rate Avg",
+		"Subflow Fwd Packets",
+		"Subflow Fwd Bytes",
+		"Subflow Bwd Packets",
+		"Subflow Bwd Bytes",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)

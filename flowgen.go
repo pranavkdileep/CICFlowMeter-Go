@@ -17,10 +17,120 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 
 	flowTimeOut := 120 * time.Second
 
+	updateForwardBulk := func(flow *utils.Flow, size int64, tsMicros int64) {
+		if flow == nil {
+			return
+		}
+		// If the other direction bulk advanced after our helper started, reset the helper.
+		if flow.BwdLastBulkTS > flow.FwdBulkStartHelper {
+			flow.FwdBulkStartHelper = 0
+		}
+		if size <= 0 {
+			return
+		}
+
+		if flow.FwdBulkStartHelper == 0 {
+			flow.FwdBulkStartHelper = tsMicros
+			flow.FwdBulkPacketCountHelper = 1
+			flow.FwdBulkSizeHelper = size
+			flow.FwdLastBulkTS = tsMicros
+			return
+		}
+
+		// Too much idle time between bulk packets? (> 1s)
+		if float64(tsMicros-flow.FwdLastBulkTS)/1e6 > 1.0 {
+			flow.FwdBulkStartHelper = tsMicros
+			flow.FwdLastBulkTS = tsMicros
+			flow.FwdBulkPacketCountHelper = 1
+			flow.FwdBulkSizeHelper = size
+			return
+		}
+
+		flow.FwdBulkPacketCountHelper++
+		flow.FwdBulkSizeHelper += size
+
+		// New bulk starts when helper count reaches 4 packets.
+		if flow.FwdBulkPacketCountHelper == 4 {
+			flow.FwdBulkStateCount++
+			flow.FwdBulkPacketCount += flow.FwdBulkPacketCountHelper
+			flow.FwdBulkSizeTotal += flow.FwdBulkSizeHelper
+			flow.FwdBulkDuration += tsMicros - flow.FwdBulkStartHelper
+		} else if flow.FwdBulkPacketCountHelper > 4 {
+			// Continuation of existing bulk.
+			flow.FwdBulkPacketCount += 1
+			flow.FwdBulkSizeTotal += size
+			flow.FwdBulkDuration += tsMicros - flow.FwdLastBulkTS
+		}
+		flow.FwdLastBulkTS = tsMicros
+	}
+
+	updateBackwardBulk := func(flow *utils.Flow, size int64, tsMicros int64) {
+		if flow == nil {
+			return
+		}
+		if flow.FwdLastBulkTS > flow.BwdBulkStartHelper {
+			flow.BwdBulkStartHelper = 0
+		}
+		if size <= 0 {
+			return
+		}
+
+		if flow.BwdBulkStartHelper == 0 {
+			flow.BwdBulkStartHelper = tsMicros
+			flow.BwdBulkPacketCountHelper = 1
+			flow.BwdBulkSizeHelper = size
+			flow.BwdLastBulkTS = tsMicros
+			return
+		}
+
+		if float64(tsMicros-flow.BwdLastBulkTS)/1e6 > 1.0 {
+			flow.BwdBulkStartHelper = tsMicros
+			flow.BwdLastBulkTS = tsMicros
+			flow.BwdBulkPacketCountHelper = 1
+			flow.BwdBulkSizeHelper = size
+			return
+		}
+
+		flow.BwdBulkPacketCountHelper++
+		flow.BwdBulkSizeHelper += size
+
+		if flow.BwdBulkPacketCountHelper == 4 {
+			flow.BwdBulkStateCount++
+			flow.BwdBulkPacketCount += flow.BwdBulkPacketCountHelper
+			flow.BwdBulkSizeTotal += flow.BwdBulkSizeHelper
+			flow.BwdBulkDuration += tsMicros - flow.BwdBulkStartHelper
+		} else if flow.BwdBulkPacketCountHelper > 4 {
+			flow.BwdBulkPacketCount += 1
+			flow.BwdBulkSizeTotal += size
+			flow.BwdBulkDuration += tsMicros - flow.BwdLastBulkTS
+		}
+		flow.BwdLastBulkTS = tsMicros
+	}
+
 	addPacket := func(flow *utils.Flow, packet gopacket.Packet, isForward bool, ts time.Time) {
 		size := utils.GetPacketSize(packet)
 		headerBytes := utils.GetTransportHeaderBytes(packet)
+		tsMicros := ts.UnixMicro()
+
+		// Subflow detection (CICFlowMeter-like): increment sfCount when the gap between packets exceeds 1 second.
+		if flow.SFLastPacketTS == 0 {
+			flow.SFLastPacketTS = tsMicros
+			flow.SFAcHelperTS = tsMicros
+		} else {
+			if float64(tsMicros-flow.SFLastPacketTS)/1e6 > 1.0 {
+				flow.SFCount++
+				flow.SFAcHelperTS = tsMicros
+			}
+			flow.SFLastPacketTS = tsMicros
+		}
 		flow.PktLenStats.AddValue(float64(size))
+
+		// Bulk tracking (CICFlowMeter-like), per direction.
+		if isForward {
+			updateForwardBulk(flow, size, tsMicros)
+		} else {
+			updateBackwardBulk(flow, size, tsMicros)
+		}
 
 		// Bidirectional TCP flag counts (CICFlowMeter-like): increment per packet.
 		if flow.Protocol == 6 {
@@ -302,6 +412,46 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		flow.BwdSegSizeAvg = 0
 	}
 
+	// Bulk averages (integer division semantics, matching CICFlowMeter Java getters).
+	if flow.FwdBulkStateCount != 0 {
+		flow.FwdBytesPerBulkAvg = flow.FwdBulkSizeTotal / flow.FwdBulkStateCount
+		flow.FwdPacketsPerBulkAvg = flow.FwdBulkPacketCount / flow.FwdBulkStateCount
+	} else {
+		flow.FwdBytesPerBulkAvg = 0
+		flow.FwdPacketsPerBulkAvg = 0
+	}
+	if flow.FwdBulkDuration != 0 {
+		flow.FwdBulkRateAvg = int64(float64(flow.FwdBulkSizeTotal) / (float64(flow.FwdBulkDuration) / 1e6))
+	} else {
+		flow.FwdBulkRateAvg = 0
+	}
+
+	if flow.BwdBulkStateCount != 0 {
+		flow.BwdBytesPerBulkAvg = flow.BwdBulkSizeTotal / flow.BwdBulkStateCount
+		flow.BwdPacketsPerBulkAvg = flow.BwdBulkPacketCount / flow.BwdBulkStateCount
+	} else {
+		flow.BwdBytesPerBulkAvg = 0
+		flow.BwdPacketsPerBulkAvg = 0
+	}
+	if flow.BwdBulkDuration != 0 {
+		flow.BwdBulkRateAvg = int64(float64(flow.BwdBulkSizeTotal) / (float64(flow.BwdBulkDuration) / 1e6))
+	} else {
+		flow.BwdBulkRateAvg = 0
+	}
+
+	// Subflow averages (integer division semantics like CICFlowMeter Java getters).
+	if flow.SFCount > 0 {
+		flow.SubflowFwdPkts = int64(flow.TotalfwdPackets) / flow.SFCount
+		flow.SubflowFwdBytes = flow.TotalLengthofFwdPacket / flow.SFCount
+		flow.SubflowBwdPkts = int64(flow.TotalbwdPackets) / flow.SFCount
+		flow.SubflowBwdBytes = flow.TotalLengthofBwdPacket / flow.SFCount
+	} else {
+		flow.SubflowFwdPkts = 0
+		flow.SubflowFwdBytes = 0
+		flow.SubflowBwdPkts = 0
+		flow.SubflowBwdBytes = 0
+	}
+
 	record := []string{
 		flow.Flowid.String(),
 		flow.SrcIP,
@@ -364,6 +514,16 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatFloat(flow.PktLenMean, 'f', 6, 64),
 		strconv.FormatFloat(flow.FwdSegSizeAvg, 'f', 6, 64),
 		strconv.FormatFloat(flow.BwdSegSizeAvg, 'f', 6, 64),
+		strconv.FormatInt(flow.FwdBytesPerBulkAvg, 10),
+		strconv.FormatInt(flow.FwdPacketsPerBulkAvg, 10),
+		strconv.FormatInt(flow.FwdBulkRateAvg, 10),
+		strconv.FormatInt(flow.BwdBytesPerBulkAvg, 10),
+		strconv.FormatInt(flow.BwdPacketsPerBulkAvg, 10),
+		strconv.FormatInt(flow.BwdBulkRateAvg, 10),
+		strconv.FormatInt(flow.SubflowFwdPkts, 10),
+		strconv.FormatInt(flow.SubflowFwdBytes, 10),
+		strconv.FormatInt(flow.SubflowBwdPkts, 10),
+		strconv.FormatInt(flow.SubflowBwdBytes, 10),
 	}
 
 	AppendToCSV(writer, record)

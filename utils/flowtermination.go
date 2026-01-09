@@ -87,16 +87,52 @@ type Flow struct {
 	DownUpRatio   float64 // Download and upload ratio (integer division semantics)
 	FwdSegSizeAvg float64 // Average segment size observed in the forward direction
 	BwdSegSizeAvg float64 // Average segment size observed in the backward direction
-	FwdIATMin     float64 // Minimum time between two packets sent in the forward direction
-	FwdIATMax     float64 // Maximum time between two packets sent in the forward direction
-	FwdIATMean    float64 // Mean time between two packets sent in the forward direction
-	FwdIATStd     float64 // Standard deviation time between two packets sent in the forward direction
-	FwdIATTotal   float64 // Total time between two packets sent in the forward direction
-	BwdIATMin     float64 // Minimum time between two packets sent in the backward direction
-	BwdIATMax     float64 // Maximum time between two packets sent in the backward direction
-	BwdIATMean    float64 // Mean time between two packets sent in the backward direction
-	BwdIATStd     float64 // Standard deviation time between two packets sent in the backward direction
-	BwdIATTotal   float64 // Total time between two packets sent in the backward direction
+
+	// Bulk feature state (CICFlowMeter-like). All timestamps/durations are in microseconds.
+	FwdBulkDuration          int64
+	FwdBulkPacketCount       int64
+	FwdBulkSizeTotal         int64
+	FwdBulkStateCount        int64
+	FwdBulkPacketCountHelper int64
+	FwdBulkStartHelper       int64
+	FwdBulkSizeHelper        int64
+	FwdLastBulkTS            int64
+
+	BwdBulkDuration          int64
+	BwdBulkPacketCount       int64
+	BwdBulkSizeTotal         int64
+	BwdBulkStateCount        int64
+	BwdBulkPacketCountHelper int64
+	BwdBulkStartHelper       int64
+	BwdBulkSizeHelper        int64
+	BwdLastBulkTS            int64
+
+	// Bulk averages (integer semantics like CICFlowMeter Java getters).
+	FwdBytesPerBulkAvg   int64
+	FwdPacketsPerBulkAvg int64
+	FwdBulkRateAvg       int64
+	BwdBytesPerBulkAvg   int64
+	BwdPacketsPerBulkAvg int64
+	BwdBulkRateAvg       int64
+
+	// Subflow tracking (CICFlowMeter-like). All timestamps are in microseconds.
+	SFCount         int64
+	SFLastPacketTS  int64
+	SFAcHelperTS    int64
+	SubflowFwdPkts  int64
+	SubflowFwdBytes int64
+	SubflowBwdPkts  int64
+	SubflowBwdBytes int64
+	FwdIATMin       float64 // Minimum time between two packets sent in the forward direction
+	FwdIATMax       float64 // Maximum time between two packets sent in the forward direction
+	FwdIATMean      float64 // Mean time between two packets sent in the forward direction
+	FwdIATStd       float64 // Standard deviation time between two packets sent in the forward direction
+	FwdIATTotal     float64 // Total time between two packets sent in the forward direction
+	BwdIATMin       float64 // Minimum time between two packets sent in the backward direction
+	BwdIATMax       float64 // Maximum time between two packets sent in the backward direction
+	BwdIATMean      float64 // Mean time between two packets sent in the backward direction
+	BwdIATStd       float64 // Standard deviation time between two packets sent in the backward direction
+	BwdIATTotal     float64 // Total time between two packets sent in the backward direction
 }
 
 // PacketTimestamp returns a stable timestamp for a packet.
