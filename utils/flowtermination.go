@@ -84,6 +84,7 @@ type Flow struct {
 	URGFlagCount int     // Number of packets with URG flag set
 	CWRFlagCount int     // Number of packets with CWR flag set
 	ECEFlagCount int     // Number of packets with ECE flag set
+	DownUpRatio  float64 // Download and upload ratio (integer division semantics)
 	FwdIATMin    float64 // Minimum time between two packets sent in the forward direction
 	FwdIATMax    float64 // Maximum time between two packets sent in the forward direction
 	FwdIATMean   float64 // Mean time between two packets sent in the forward direction

@@ -284,6 +284,13 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 	flow.BwdIATMax = flowmetrics.BwdIATMax(flow.TotalbwdPackets, flow.BwdIAT)
 	flow.BwdIATMin = flowmetrics.BwdIATMin(flow.TotalbwdPackets, flow.BwdIAT)
 
+	// Down/Up Ratio (CICFlowMeter): integer division of backwardPackets/forwardPackets.
+	if flow.TotalfwdPackets > 0 {
+		flow.DownUpRatio = float64(flow.TotalbwdPackets / flow.TotalfwdPackets)
+	} else {
+		flow.DownUpRatio = 0
+	}
+
 	record := []string{
 		flow.Flowid.String(),
 		flow.SrcIP,
@@ -342,6 +349,7 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.Itoa(flow.URGFlagCount),
 		strconv.Itoa(flow.CWRFlagCount),
 		strconv.Itoa(flow.ECEFlagCount),
+		strconv.FormatFloat(flow.DownUpRatio, 'f', 6, 64),
 	}
 
 	AppendToCSV(writer, record)

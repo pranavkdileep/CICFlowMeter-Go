@@ -95,6 +95,7 @@ func main() {
 		"URG Flag Count",
 		"CWR Flag Count",
 		"ECE Flag Count",
+		"Down/Up Ratio",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)
