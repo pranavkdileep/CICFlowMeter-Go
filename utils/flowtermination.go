@@ -36,6 +36,8 @@ type Flow struct {
 	BURG_cnt               int
 	FwdFINCount            int
 	BwdFINCount            int
+	FwdHeaderLength        int64 // Total transport header bytes in forward direction
+	BwdHeaderLength        int64 // Total transport header bytes in backward direction
 	TotalLengthofFwdPacket int64 // Total size of packet in forward direction
 	TotalLengthofBwdPacket int64 // Total size of packet in backward direction
 	Timestamp              time.Time
@@ -61,6 +63,8 @@ type Flow struct {
 	BwdPacketLengthStd   float64 // Standard deviation size of packet in backward direction
 	FlowBytesPerSecond   float64 // Number of flow bytes per second
 	FlowPacketsPerSecond float64 // Number of flow packets per second
+	FwdPacketsPerSecond  float64 // Number of forward packets per second
+	BwdPacketsPerSecond  float64 // Number of backward packets per second
 
 	FlowIATMean float64 // Mean time between two packets sent in the flow
 	FlowIATStd  float64 // Standard deviation time between two packets sent in the flow

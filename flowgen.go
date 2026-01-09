@@ -18,6 +18,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 
 	addPacket := func(flow *utils.Flow, packet gopacket.Packet, isForward bool, ts time.Time) {
 		size := utils.GetPacketSize(packet)
+		headerBytes := utils.GetTransportHeaderBytes(packet)
 		prevTotal := flow.TotalfwdPackets + flow.TotalbwdPackets
 		if prevTotal >= 1 && !flow.LastSeenTime.IsZero() {
 			flow.FlowIAT.AddValue(float64(ts.Sub(flow.LastSeenTime).Microseconds()))
@@ -49,6 +50,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 				flow.FwdIAT.AddValue(float64(ts.Sub(flow.FwdLastSeenTime).Microseconds()))
 			}
 			flow.TotalfwdPackets++
+			flow.FwdHeaderLength += headerBytes
 			flow.FwdPktStats.AddValue(float64(size))
 			flow.TotalLengthofFwdPacket += size
 			flow.FwdLastSeenTime = ts
@@ -58,6 +60,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 				flow.BwdIAT.AddValue(float64(ts.Sub(flow.BwdLastSeenTime).Microseconds()))
 			}
 			flow.TotalbwdPackets++
+			flow.BwdHeaderLength += headerBytes
 			flow.BwdPktStats.AddValue(float64(size))
 			flow.TotalLengthofBwdPacket += size
 			flow.BwdLastSeenTime = ts
@@ -76,6 +79,8 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			Protocol:               template.Protocol,
 			TotalfwdPackets:        0,
 			TotalbwdPackets:        0,
+			FwdHeaderLength:        0,
+			BwdHeaderLength:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
 			FlowIAT:                flowmetrics.NewIATStats(),
@@ -100,6 +105,8 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			Protocol:               flowID.Protocol,
 			TotalfwdPackets:        0,
 			TotalbwdPackets:        0,
+			FwdHeaderLength:        0,
+			BwdHeaderLength:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
 			FlowIAT:                flowmetrics.NewIATStats(),
@@ -201,6 +208,14 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 	flow.BwdPacketLengthStd = flowmetrics.BwdPacketLengthStd(flow.BwdPktStats)
 	flow.FlowBytesPerSecond = (float64(flow.TotalLengthofFwdPacket+flow.TotalLengthofBwdPacket) / (float64(flow.FlowDuration) / 1e6))
 	flow.FlowPacketsPerSecond = (float64(flow.TotalfwdPackets+flow.TotalbwdPackets) / (float64(flow.FlowDuration) / 1e6))
+	if flow.FlowDuration > 0 {
+		seconds := float64(flow.FlowDuration) / 1e6
+		flow.FwdPacketsPerSecond = float64(flow.TotalfwdPackets) / seconds
+		flow.BwdPacketsPerSecond = float64(flow.TotalbwdPackets) / seconds
+	} else {
+		flow.FwdPacketsPerSecond = 0
+		flow.BwdPacketsPerSecond = 0
+	}
 
 	flow.FlowIATMean = flowmetrics.FlowIATMean(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
 	flow.FlowIATStd = flowmetrics.FlowIATStd(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
@@ -260,6 +275,10 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.Itoa(flow.BPSH_cnt),
 		strconv.Itoa(flow.FURG_cnt),
 		strconv.Itoa(flow.BURG_cnt),
+		strconv.FormatInt(flow.FwdHeaderLength, 10),
+		strconv.FormatInt(flow.BwdHeaderLength, 10),
+		strconv.FormatFloat(flow.FwdPacketsPerSecond, 'f', 6, 64),
+		strconv.FormatFloat(flow.BwdPacketsPerSecond, 'f', 6, 64),
 	}
 
 	AppendToCSV(writer, record)

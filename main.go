@@ -78,6 +78,10 @@ func main() {
 		"Bwd PSH Flags",
 		"Fwd URG Flags",
 		"Bwd URG Flags",
+		"Fwd Header Length",
+		"Bwd Header Length",
+		"Fwd Packets/s",
+		"Bwd Packets/s",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)
