@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*utils.Flow, wg *sync.WaitGroup, mu *sync.Mutex, packetcount *int, writer *csv.Writer) {
@@ -20,6 +21,38 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 		size := utils.GetPacketSize(packet)
 		headerBytes := utils.GetTransportHeaderBytes(packet)
 		flow.PktLenStats.AddValue(float64(size))
+
+		// Bidirectional TCP flag counts (CICFlowMeter-like): increment per packet.
+		if flow.Protocol == 6 {
+			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+				if tcp, ok := tcpLayer.(*layers.TCP); ok {
+					if tcp.FIN {
+						flow.FINFlagCount++
+					}
+					if tcp.SYN {
+						flow.SYNFlagCount++
+					}
+					if tcp.RST {
+						flow.RSTFlagCount++
+					}
+					if tcp.PSH {
+						flow.PSHFlagCount++
+					}
+					if tcp.ACK {
+						flow.ACKFlagCount++
+					}
+					if tcp.URG {
+						flow.URGFlagCount++
+					}
+					if tcp.CWR {
+						flow.CWRFlagCount++
+					}
+					if tcp.ECE {
+						flow.ECEFlagCount++
+					}
+				}
+			}
+		}
 		prevTotal := flow.TotalfwdPackets + flow.TotalbwdPackets
 		if prevTotal >= 1 && !flow.LastSeenTime.IsZero() {
 			flow.FlowIAT.AddValue(float64(ts.Sub(flow.LastSeenTime).Microseconds()))
@@ -301,6 +334,14 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatFloat(flow.PktLenMean, 'f', 6, 64),
 		strconv.FormatFloat(flow.PktLenStd, 'f', 6, 64),
 		strconv.FormatFloat(flow.PktLenVar, 'f', 6, 64),
+		strconv.Itoa(flow.FINFlagCount),
+		strconv.Itoa(flow.SYNFlagCount),
+		strconv.Itoa(flow.RSTFlagCount),
+		strconv.Itoa(flow.PSHFlagCount),
+		strconv.Itoa(flow.ACKFlagCount),
+		strconv.Itoa(flow.URGFlagCount),
+		strconv.Itoa(flow.CWRFlagCount),
+		strconv.Itoa(flow.ECEFlagCount),
 	}
 
 	AppendToCSV(writer, record)

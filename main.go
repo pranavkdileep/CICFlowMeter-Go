@@ -87,6 +87,14 @@ func main() {
 		"Packet Length Mean",
 		"Packet Length Std",
 		"Packet Length Variance",
+		"FIN Flag Count",
+		"SYN Flag Count",
+		"RST Flag Count",
+		"PSH Flag Count",
+		"ACK Flag Count",
+		"URG Flag Count",
+		"CWR Flag Count",
+		"ECE Flag Count",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)

@@ -67,25 +67,33 @@ type Flow struct {
 	FwdPacketsPerSecond  float64 // Number of forward packets per second
 	BwdPacketsPerSecond  float64 // Number of backward packets per second
 
-	FlowIATMean float64 // Mean time between two packets sent in the flow
-	FlowIATStd  float64 // Standard deviation time between two packets sent in the flow
-	FlowIATMax  float64 // Maximum time between two packets sent in the flow
-	FlowIATMin  float64 // Minimum time between two packets sent in the flow
-	PktLenMin   float64 // Minimum payload bytes among all packets
-	PktLenMax   float64 // Maximum payload bytes among all packets
-	PktLenMean  float64 // Mean payload bytes among all packets
-	PktLenStd   float64 // Stddev payload bytes among all packets
-	PktLenVar   float64 // Variance payload bytes among all packets
-	FwdIATMin   float64 // Minimum time between two packets sent in the forward direction
-	FwdIATMax   float64 // Maximum time between two packets sent in the forward direction
-	FwdIATMean  float64 // Mean time between two packets sent in the forward direction
-	FwdIATStd   float64 // Standard deviation time between two packets sent in the forward direction
-	FwdIATTotal float64 // Total time between two packets sent in the forward direction
-	BwdIATMin   float64 // Minimum time between two packets sent in the backward direction
-	BwdIATMax   float64 // Maximum time between two packets sent in the backward direction
-	BwdIATMean  float64 // Mean time between two packets sent in the backward direction
-	BwdIATStd   float64 // Standard deviation time between two packets sent in the backward direction
-	BwdIATTotal float64 // Total time between two packets sent in the backward direction
+	FlowIATMean  float64 // Mean time between two packets sent in the flow
+	FlowIATStd   float64 // Standard deviation time between two packets sent in the flow
+	FlowIATMax   float64 // Maximum time between two packets sent in the flow
+	FlowIATMin   float64 // Minimum time between two packets sent in the flow
+	PktLenMin    float64 // Minimum payload bytes among all packets
+	PktLenMax    float64 // Maximum payload bytes among all packets
+	PktLenMean   float64 // Mean payload bytes among all packets
+	PktLenStd    float64 // Stddev payload bytes among all packets
+	PktLenVar    float64 // Variance payload bytes among all packets
+	FINFlagCount int     // Number of packets with FIN flag set
+	SYNFlagCount int     // Number of packets with SYN flag set
+	RSTFlagCount int     // Number of packets with RST flag set
+	PSHFlagCount int     // Number of packets with PSH flag set
+	ACKFlagCount int     // Number of packets with ACK flag set
+	URGFlagCount int     // Number of packets with URG flag set
+	CWRFlagCount int     // Number of packets with CWR flag set
+	ECEFlagCount int     // Number of packets with ECE flag set
+	FwdIATMin    float64 // Minimum time between two packets sent in the forward direction
+	FwdIATMax    float64 // Maximum time between two packets sent in the forward direction
+	FwdIATMean   float64 // Mean time between two packets sent in the forward direction
+	FwdIATStd    float64 // Standard deviation time between two packets sent in the forward direction
+	FwdIATTotal  float64 // Total time between two packets sent in the forward direction
+	BwdIATMin    float64 // Minimum time between two packets sent in the backward direction
+	BwdIATMax    float64 // Maximum time between two packets sent in the backward direction
+	BwdIATMean   float64 // Mean time between two packets sent in the backward direction
+	BwdIATStd    float64 // Standard deviation time between two packets sent in the backward direction
+	BwdIATTotal  float64 // Total time between two packets sent in the backward direction
 }
 
 // PacketTimestamp returns a stable timestamp for a packet.
