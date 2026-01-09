@@ -70,6 +70,20 @@ func (s Stats) StandardDeviation() float64 {
 	return math.Sqrt(variance)
 }
 
+// Variance returns the sample variance (N-1 in the denominator), matching
+// Apache Commons Math SummaryStatistics.getVariance().
+func (s Stats) Variance() float64 {
+	if s.n <= 1 {
+		return 0
+	}
+	n := float64(s.n)
+	variance := (s.sum2 - (s.sum*s.sum)/n) / (n - 1.0)
+	if variance < 0 {
+		variance = 0
+	}
+	return variance
+}
+
 // --- CICFlowMeter-like getters for fwd/bwd packet length stats ---
 
 func FwdPacketLengthMin(fwd Stats) float64 {

@@ -82,6 +82,11 @@ func main() {
 		"Bwd Header Length",
 		"Fwd Packets/s",
 		"Bwd Packets/s",
+		"Packet Length Min",
+		"Packet Length Max",
+		"Packet Length Mean",
+		"Packet Length Std",
+		"Packet Length Variance",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)

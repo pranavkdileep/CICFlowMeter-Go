@@ -19,6 +19,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 	addPacket := func(flow *utils.Flow, packet gopacket.Packet, isForward bool, ts time.Time) {
 		size := utils.GetPacketSize(packet)
 		headerBytes := utils.GetTransportHeaderBytes(packet)
+		flow.PktLenStats.AddValue(float64(size))
 		prevTotal := flow.TotalfwdPackets + flow.TotalbwdPackets
 		if prevTotal >= 1 && !flow.LastSeenTime.IsZero() {
 			flow.FlowIAT.AddValue(float64(ts.Sub(flow.LastSeenTime).Microseconds()))
@@ -83,6 +84,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			BwdHeaderLength:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
+			PktLenStats:            flowmetrics.NewStats(),
 			FlowIAT:                flowmetrics.NewIATStats(),
 			FwdIAT:                 flowmetrics.NewIATStats(),
 			BwdIAT:                 flowmetrics.NewIATStats(),
@@ -109,6 +111,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			BwdHeaderLength:        0,
 			FwdPktStats:            flowmetrics.NewStats(),
 			BwdPktStats:            flowmetrics.NewStats(),
+			PktLenStats:            flowmetrics.NewStats(),
 			FlowIAT:                flowmetrics.NewIATStats(),
 			FwdIAT:                 flowmetrics.NewIATStats(),
 			BwdIAT:                 flowmetrics.NewIATStats(),
@@ -222,6 +225,20 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 	flow.FlowIATMax = flowmetrics.FlowIATMax(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
 	flow.FlowIATMin = flowmetrics.FlowIATMin(flow.TotalfwdPackets+flow.TotalbwdPackets, flow.FlowIAT)
 
+	if flow.PktLenStats.N() > 0 {
+		flow.PktLenMin = flow.PktLenStats.Min()
+		flow.PktLenMax = flow.PktLenStats.Max()
+		flow.PktLenMean = flow.PktLenStats.Mean()
+		flow.PktLenStd = flow.PktLenStats.StandardDeviation()
+		flow.PktLenVar = flow.PktLenStats.Variance()
+	} else {
+		flow.PktLenMin = 0
+		flow.PktLenMax = 0
+		flow.PktLenMean = 0
+		flow.PktLenStd = 0
+		flow.PktLenVar = 0
+	}
+
 	flow.FwdIATTotal = flowmetrics.FwdIATTotal(flow.TotalfwdPackets, flow.FwdIAT)
 	flow.FwdIATMean = flowmetrics.FwdIATMean(flow.TotalfwdPackets, flow.FwdIAT)
 	flow.FwdIATStd = flowmetrics.FwdIATStd(flow.TotalfwdPackets, flow.FwdIAT)
@@ -279,6 +296,11 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatInt(flow.BwdHeaderLength, 10),
 		strconv.FormatFloat(flow.FwdPacketsPerSecond, 'f', 6, 64),
 		strconv.FormatFloat(flow.BwdPacketsPerSecond, 'f', 6, 64),
+		strconv.FormatFloat(flow.PktLenMin, 'f', 6, 64),
+		strconv.FormatFloat(flow.PktLenMax, 'f', 6, 64),
+		strconv.FormatFloat(flow.PktLenMean, 'f', 6, 64),
+		strconv.FormatFloat(flow.PktLenStd, 'f', 6, 64),
+		strconv.FormatFloat(flow.PktLenVar, 'f', 6, 64),
 	}
 
 	AppendToCSV(writer, record)

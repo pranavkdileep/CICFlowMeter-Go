@@ -48,6 +48,7 @@ type Flow struct {
 	// for calculation
 	FwdPktStats flowmetrics.Stats
 	BwdPktStats flowmetrics.Stats
+	PktLenStats flowmetrics.Stats
 	FlowIAT     flowmetrics.IATStats
 	FwdIAT      flowmetrics.IATStats
 	BwdIAT      flowmetrics.IATStats
@@ -70,6 +71,11 @@ type Flow struct {
 	FlowIATStd  float64 // Standard deviation time between two packets sent in the flow
 	FlowIATMax  float64 // Maximum time between two packets sent in the flow
 	FlowIATMin  float64 // Minimum time between two packets sent in the flow
+	PktLenMin   float64 // Minimum payload bytes among all packets
+	PktLenMax   float64 // Maximum payload bytes among all packets
+	PktLenMean  float64 // Mean payload bytes among all packets
+	PktLenStd   float64 // Stddev payload bytes among all packets
+	PktLenVar   float64 // Variance payload bytes among all packets
 	FwdIATMin   float64 // Minimum time between two packets sent in the forward direction
 	FwdIATMax   float64 // Maximum time between two packets sent in the forward direction
 	FwdIATMean  float64 // Mean time between two packets sent in the forward direction
