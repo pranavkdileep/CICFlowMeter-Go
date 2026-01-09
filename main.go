@@ -96,6 +96,7 @@ func main() {
 		"CWR Flag Count",
 		"ECE Flag Count",
 		"Down/Up Ratio",
+		"Average Packet Size",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)
