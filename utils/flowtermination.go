@@ -133,6 +133,10 @@ type Flow struct {
 	BwdIATMean      float64 // Mean time between two packets sent in the backward direction
 	BwdIATStd       float64 // Standard deviation time between two packets sent in the backward direction
 	BwdIATTotal     float64 // Total time between two packets sent in the backward direction
+
+	// TCP Initial Window bytes (from TCP header window field)
+	InitWinBytesForward  int // The total number of bytes sent in initial window in the forward direction
+	InitWinBytesBackward int // The total number of bytes sent in initial window in the backward direction
 }
 
 // PacketTimestamp returns a stable timestamp for a packet.

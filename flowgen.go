@@ -112,6 +112,21 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 		headerBytes := utils.GetTransportHeaderBytes(packet)
 		tsMicros := ts.UnixMicro()
 
+		// Capture TCP window size for initial window bytes (like CICFlowMeter)
+		if flow.Protocol == 6 {
+			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+				if tcp, ok := tcpLayer.(*layers.TCP); ok {
+					if isForward && flow.TotalfwdPackets == 0 {
+						// First forward packet sets forward init window bytes
+						flow.InitWinBytesForward = int(tcp.Window)
+					} else if !isForward {
+						// Backward packets set/update backward init window bytes
+						flow.InitWinBytesBackward = int(tcp.Window)
+					}
+				}
+			}
+		}
+
 		// Subflow detection (CICFlowMeter-like): increment sfCount when the gap between packets exceeds 1 second.
 		if flow.SFLastPacketTS == 0 {
 			flow.SFLastPacketTS = tsMicros
@@ -524,6 +539,8 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatInt(flow.SubflowFwdBytes, 10),
 		strconv.FormatInt(flow.SubflowBwdPkts, 10),
 		strconv.FormatInt(flow.SubflowBwdBytes, 10),
+		strconv.Itoa(flow.InitWinBytesForward),
+		strconv.Itoa(flow.InitWinBytesBackward),
 	}
 
 	AppendToCSV(writer, record)

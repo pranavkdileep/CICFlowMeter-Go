@@ -109,6 +109,8 @@ func main() {
 		"Subflow Fwd Bytes",
 		"Subflow Bwd Packets",
 		"Subflow Bwd Bytes",
+		"Fwd Init Win bytes",
+		"Bwd Init Win bytes",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)
