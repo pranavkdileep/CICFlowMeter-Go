@@ -111,6 +111,17 @@ func main() {
 		"Subflow Bwd Bytes",
 		"Fwd Init Win bytes",
 		"Bwd Init Win bytes",
+		"Fwd Act Data Pkts",
+		"Fwd Seg Size Min",
+		"Active Mean",
+		"Active Std",
+		"Active Max",
+		"Active Min",
+		"Idle Mean",
+		"Idle Std",
+		"Idle Max",
+		"Idle Min",
+		"Label",
 	}
 	writer := InitCSVFile(output_pcap_path, headers)
 	defer CloseCSVFile(writer)

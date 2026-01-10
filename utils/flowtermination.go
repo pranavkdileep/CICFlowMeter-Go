@@ -123,20 +123,32 @@ type Flow struct {
 	SubflowFwdBytes int64
 	SubflowBwdPkts  int64
 	SubflowBwdBytes int64
-	FwdIATMin       float64 // Minimum time between two packets sent in the forward direction
-	FwdIATMax       float64 // Maximum time between two packets sent in the forward direction
-	FwdIATMean      float64 // Mean time between two packets sent in the forward direction
-	FwdIATStd       float64 // Standard deviation time between two packets sent in the forward direction
-	FwdIATTotal     float64 // Total time between two packets sent in the forward direction
-	BwdIATMin       float64 // Minimum time between two packets sent in the backward direction
-	BwdIATMax       float64 // Maximum time between two packets sent in the backward direction
-	BwdIATMean      float64 // Mean time between two packets sent in the backward direction
-	BwdIATStd       float64 // Standard deviation time between two packets sent in the backward direction
-	BwdIATTotal     float64 // Total time between two packets sent in the backward direction
+
+	// Active/Idle flow segmentation (CICFlowMeter-like). All timestamps/durations are in microseconds.
+	StartActiveTimeMicros int64
+	EndActiveTimeMicros   int64
+	FlowActive            flowmetrics.Stats
+	FlowIdle              flowmetrics.Stats
+
+	FwdIATMin   float64 // Minimum time between two packets sent in the forward direction
+	FwdIATMax   float64 // Maximum time between two packets sent in the forward direction
+	FwdIATMean  float64 // Mean time between two packets sent in the forward direction
+	FwdIATStd   float64 // Standard deviation time between two packets sent in the forward direction
+	FwdIATTotal float64 // Total time between two packets sent in the forward direction
+	BwdIATMin   float64 // Minimum time between two packets sent in the backward direction
+	BwdIATMax   float64 // Maximum time between two packets sent in the backward direction
+	BwdIATMean  float64 // Mean time between two packets sent in the backward direction
+	BwdIATStd   float64 // Standard deviation time between two packets sent in the backward direction
+	BwdIATTotal float64 // Total time between two packets sent in the backward direction
 
 	// TCP Initial Window bytes (from TCP header window field)
 	InitWinBytesForward  int // The total number of bytes sent in initial window in the forward direction
 	InitWinBytesBackward int // The total number of bytes sent in initial window in the backward direction
+
+	// Forward TCP active data packets: count of forward TCP packets with payload bytes >= 1.
+	FwdActDataPkts int64
+	// Forward segment size min (CICFlowMeter Java uses packet header bytes, not payload bytes).
+	FwdSegSizeMin int64
 }
 
 // PacketTimestamp returns a stable timestamp for a packet.

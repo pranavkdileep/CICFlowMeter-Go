@@ -16,6 +16,8 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 	defer wg.Done()
 
 	flowTimeOut := 120 * time.Second
+	// CICFlowMeter-like activity timeout used to segment Active/Idle periods.
+	flowActivityTimeOutMicros := int64((5 * time.Second).Microseconds())
 
 	updateForwardBulk := func(flow *utils.Flow, size int64, tsMicros int64) {
 		if flow == nil {
@@ -112,6 +114,9 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 		headerBytes := utils.GetTransportHeaderBytes(packet)
 		tsMicros := ts.UnixMicro()
 
+		// Active/Idle tracking must happen on every packet timestamp.
+		utils.UpdateActiveIdleTime(flow, tsMicros, flowActivityTimeOutMicros)
+
 		// Capture TCP window size for initial window bytes (like CICFlowMeter)
 		if flow.Protocol == 6 {
 			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
@@ -124,6 +129,21 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 						flow.InitWinBytesBackward = int(tcp.Window)
 					}
 				}
+			}
+		}
+
+		// CICFlowMeter: forward active data packets count (TCP only) and forward min segment size.
+		if isForward {
+			// min_seg_size_forward is min over packet.getHeaderBytes() in forward direction.
+			if flow.TotalfwdPackets == 0 {
+				flow.FwdSegSizeMin = headerBytes
+			} else if headerBytes != 0 && (flow.FwdSegSizeMin == 0 || headerBytes < flow.FwdSegSizeMin) {
+				flow.FwdSegSizeMin = headerBytes
+			}
+
+			// Act_data_pkt_forward increments when TCP payload bytes >= 1.
+			if flow.Protocol == 6 && size >= 1 {
+				flow.FwdActDataPkts++
 			}
 		}
 
@@ -229,6 +249,7 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 	}
 
 	newFlowFromTemplate := func(flowID utils.Flowid, template *utils.Flow, ts time.Time) *utils.Flow {
+		tsMicros := ts.UnixMicro()
 		return &utils.Flow{
 			Flowid:                 flowID,
 			SrcIP:                  template.SrcIP,
@@ -246,16 +267,21 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			FlowIAT:                flowmetrics.NewIATStats(),
 			FwdIAT:                 flowmetrics.NewIATStats(),
 			BwdIAT:                 flowmetrics.NewIATStats(),
+			FlowActive:             flowmetrics.NewStats(),
+			FlowIdle:               flowmetrics.NewStats(),
 			TotalLengthofFwdPacket: 0,
 			TotalLengthofBwdPacket: 0,
 			Timestamp:              ts,
 			LastSeenTime:           ts,
 			FwdLastSeenTime:        time.Time{},
 			BwdLastSeenTime:        time.Time{},
+			StartActiveTimeMicros:  tsMicros,
+			EndActiveTimeMicros:    tsMicros,
 		}
 	}
 
 	newFlowForFirstPacket := func(flowID utils.Flowid, ts time.Time) *utils.Flow {
+		tsMicros := ts.UnixMicro()
 		return &utils.Flow{
 			Flowid:                 flowID,
 			SrcIP:                  flowID.SrcIP,
@@ -273,11 +299,15 @@ func dispatchPacketToFlow(ch chan gopacket.Packet, flowmap map[utils.Flowid]*uti
 			FlowIAT:                flowmetrics.NewIATStats(),
 			FwdIAT:                 flowmetrics.NewIATStats(),
 			BwdIAT:                 flowmetrics.NewIATStats(),
+			FlowActive:             flowmetrics.NewStats(),
+			FlowIdle:               flowmetrics.NewStats(),
 			TotalLengthofFwdPacket: 0,
 			TotalLengthofBwdPacket: 0,
 			Timestamp:              ts,
 			LastSeenTime:           ts,
 			FwdLastSeenTime:        ts,
+			StartActiveTimeMicros:  tsMicros,
+			EndActiveTimeMicros:    tsMicros,
 		}
 	}
 
@@ -354,6 +384,9 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 	if !exists {
 		return
 	}
+
+	// Finalize the last active period for Active* metrics.
+	utils.EndActiveIdleTime(flow)
 
 	flow.FlowDuration = flowmetrics.CalculateFlowDuration(
 		flow.Timestamp,
@@ -541,6 +574,17 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatInt(flow.SubflowBwdBytes, 10),
 		strconv.Itoa(flow.InitWinBytesForward),
 		strconv.Itoa(flow.InitWinBytesBackward),
+		strconv.FormatInt(flow.FwdActDataPkts, 10),
+		strconv.FormatInt(flow.FwdSegSizeMin, 10),
+		strconv.FormatFloat(flow.FlowActive.Mean(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowActive.StandardDeviation(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowActive.Max(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowActive.Min(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowIdle.Mean(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowIdle.StandardDeviation(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowIdle.Max(), 'f', 6, 64),
+		strconv.FormatFloat(flow.FlowIdle.Min(), 'f', 6, 64),
+		"Sys",
 	}
 
 	AppendToCSV(writer, record)
