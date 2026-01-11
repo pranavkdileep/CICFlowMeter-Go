@@ -2,6 +2,7 @@ package main
 
 import (
 	"client/flowmetrics"
+	"client/gui"
 	"client/utils"
 	"encoding/csv"
 	"strconv"
@@ -500,6 +501,10 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		flow.SubflowBwdBytes = 0
 	}
 
+	gui.AddFlowToTui(flow)
+	flowLabel := gui.PreditAttack(*flow)
+	gui.UpdateLabelInTui(flow.Flowid.String(), flowLabel)
+
 	record := []string{
 		flow.Flowid.String(),
 		flow.SrcIP,
@@ -584,7 +589,7 @@ func flowComplete(flowid utils.Flowid, flowmap map[utils.Flowid]*utils.Flow, wri
 		strconv.FormatFloat(flow.FlowIdle.StandardDeviation(), 'f', 6, 64),
 		strconv.FormatFloat(flow.FlowIdle.Max(), 'f', 6, 64),
 		strconv.FormatFloat(flow.FlowIdle.Min(), 'f', 6, 64),
-		"Sys",
+		flowLabel,
 	}
 
 	AppendToCSV(writer, record)
