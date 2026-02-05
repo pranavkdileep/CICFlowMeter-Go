@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"client/gui"
 	"client/utils"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -404,6 +409,43 @@ func runLive(device string) {
 	if sendReport {
 		id := gui.GenerateIncidentID()
 		fmt.Printf("\nProcessing Stopped. Incident Report Generated successfully.\nIncident ID: %s\n", id)
+
+		// Prompt for user input
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter Incident Name: ")
+		name, _ := reader.ReadString('\n')
+		name = strings.TrimSpace(name)
+
+		var riskLevel string
+		for {
+			fmt.Println("Select Risk Level:")
+			fmt.Println("1. HIGH")
+			fmt.Println("2. MEDIUM")
+			fmt.Println("3. CRITICAL")
+			fmt.Print("Enter choice (1-3): ")
+			choice, _ := reader.ReadString('\n')
+			choice = strings.TrimSpace(choice)
+
+			switch choice {
+			case "1", "HIGH", "high":
+				riskLevel = "HIGH"
+			case "2", "MEDIUM", "medium":
+				riskLevel = "MEDIUM"
+			case "3", "CRITICAL", "critical":
+				riskLevel = "CRITICAL"
+			default:
+				fmt.Println("Invalid selection. Please enter 1, 2, or 3.")
+				continue
+			}
+			break
+		}
+
+		err := reportIncident(id, device, name, riskLevel, "out.csv")
+		if err != nil {
+			fmt.Printf("Failed to send report: %v\n", err)
+		} else {
+			fmt.Println("Report sent successfully!")
+		}
 		return
 	}
 
@@ -563,4 +605,63 @@ func runOffline(inputPcapPath string) {
 	fmt.Printf("Total Packets Processed: %d\n", packetcount)
 	fmt.Printf("The Final Length Of Map Data : %d\n", len(flowmap))
 	fmt.Printf("Processing completed in %s\n", time.Since(starttime))
+}
+
+func reportIncident(incidentID, networkInterface, name, riskLevel, filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("could not open file: %w", err)
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Add fields
+	fields := map[string]string{
+		"incident_id":      incidentID,
+		"serverip":         "127.0.0.1",
+		"networkinterface": networkInterface,
+		"name":             name,
+		"risklevel":        riskLevel,
+	}
+
+	for key, val := range fields {
+		if err := writer.WriteField(key, val); err != nil {
+			return fmt.Errorf("could not write field %s: %w", key, err)
+		}
+	}
+
+	// Add file
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return fmt.Errorf("could not create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return fmt.Errorf("could not copy file content: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("could not close writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", "http://localhost:5000/reportIncident", body)
+	if err != nil {
+		return fmt.Errorf("could not create request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("bad status: %s, response: %s", resp.Status, string(bodyBytes))
+	}
+
+	return nil
 }
