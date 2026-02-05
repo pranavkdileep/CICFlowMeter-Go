@@ -396,10 +396,16 @@ func runLive(device string) {
 	}()
 
 	// Run the existing dashboard TUI in the foreground; when it exits, stop capture.
-	gui.Create()
+	sendReport := gui.Create()
 	handle.Close()
 	<-captureDone
 	wg.Wait()
+
+	if sendReport {
+		id := gui.GenerateIncidentID()
+		fmt.Printf("\nProcessing Stopped. Incident Report Generated successfully.\nIncident ID: %s\n", id)
+		return
+	}
 
 	fmt.Printf("Total Packets Processed: %d\n", packetcount)
 	fmt.Printf("The Final Length Of Map Data : %d\n", len(flowmap))

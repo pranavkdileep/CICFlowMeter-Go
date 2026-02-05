@@ -124,9 +124,10 @@ type statsUpdateMsg struct{}
 // --- Main Model ---
 
 type model struct {
-	records      []ProcessedRecord
-	labelCounts  map[string]int
-	totalRecords int
+	records       []ProcessedRecord
+	labelCounts   map[string]int
+	totalRecords  int
+	stopAndReport bool
 
 	// Stats
 	cpuUsage    float64
@@ -193,6 +194,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "s":
+			m.stopAndReport = true
 			return m, tea.Quit
 		}
 		m.listViewport, cmd = m.listViewport.Update(msg)
@@ -444,6 +448,7 @@ func (m model) renderDashboard() string {
 		"\n",
 		statsBox,
 		renderedThreats,
+		"\n[q] Quit | [s] Stop & Report",
 	)
 }
 
@@ -486,17 +491,24 @@ func UpdateLabelInTui(flowID string, label string) {
 	sendToProgram(analysisResultMsg{FlowID: flowID, Label: label})
 }
 
-func Create() {
+func Create() bool {
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	programMu.Lock()
 	program = p
 	programMu.Unlock()
 
-	if _, err := p.Run(); err != nil {
+	m, err := p.Run()
+	if err != nil {
 		fmt.Println("Error:", err)
+		return false
 	}
 
 	programMu.Lock()
 	program = nil
 	programMu.Unlock()
+
+	if model, ok := m.(model); ok {
+		return model.stopAndReport
+	}
+	return false
 }
