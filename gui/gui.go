@@ -4,14 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
+	"os"
+	"sync"
 	"time"
 
 	"client/utils"
-	"math/rand"
 )
 
+var preditAttackMu sync.Mutex
+
 func PreditAttack(flow utils.Flow) string {
+	preditAttackMu.Lock()
+	defer preditAttackMu.Unlock()
+
 	attacks := []string{"Api Error", "Backend Crash"}
 
 	payload := map[string]interface{}{
@@ -94,9 +102,19 @@ func PreditAttack(flow utils.Flow) string {
 		" Idle Min":                    flow.FlowIdle.Min(),
 	}
 
+	for key, value := range payload {
+		payload[key] = sanitizeJSONValue(value)
+	}
+
 	b, err := json.Marshal(payload)
 	if err != nil {
-		return attacks[rand.Intn(len(attacks))]
+		// Append error to error.txt
+		f, ferr := os.OpenFile("error.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if ferr == nil {
+			defer f.Close()
+			f.WriteString(time.Now().Format(time.RFC3339) + ": json.Marshal error: " + err.Error() + "\n")
+		}
+		return "b error"
 	}
 
 	client := &http.Client{Timeout: 2 * time.Second}
@@ -117,6 +135,7 @@ func PreditAttack(flow utils.Flow) string {
 		Probabilities  []float64 `json:"probabilities"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
+		//return attacks[rand.Intn(len(attacks))]
 		return attacks[rand.Intn(len(attacks))]
 	}
 	if out.PredictedLabel != "" {
@@ -132,4 +151,19 @@ func GenerateIncidentID() string {
 		b[i] = charset[rand.Intn(len(charset))]
 	}
 	return string(b)
+}
+
+func sanitizeJSONValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return 0.0
+		}
+	case float32:
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+			return float32(0)
+		}
+	}
+
+	return value
 }
